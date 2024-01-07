@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+	<title>Easy Shade</title>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="icon" href="favicon.ico" />
+		<link
+			rel="stylesheet"
+			href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css"
+		/>
+
+		<link rel="stylesheet" href="style.css" />
+		<script src="https://code.jquery.com/jquery-1.11.1.min.js"></script>
+		<script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+		<script src="script.js"></script>
+	</head>
+	<body>
+		<!-- Main page -->
+		<div data-role="page" style="overflow: hidden">
+			<!-- Main page header -->
+			<div data-role="header" data-position="fixed">
+				<h1>Easy Shade</h1>
+				<a href="#menu-panel" data-icon="bars">Меню</a>
+				<a href="#settings" data-icon="gear">Настройки</a>
+			</div>
+			<!--End of main page header-->
+
+			<!-- Main page content -->
+			<div data-role="main" class="ui-content jqm-content jqm-fullwidth">
+				<div class="ui-corner-all custom-corners">
+					<div class="ui-bar ui-bar-a">
+						<h3>Затемнение</h3>
+					</div>
+					<div class="ui-body ui-body-a">
+						<input
+							type="range"
+							name="slider"
+							id="slider"
+							value="0"
+							min="0"
+							max="100"
+							data-highlight="true"
+						/>
+					</div>
+				</div>
+				<br />
+				<div class="ui-corner-all custom-corners">
+					<div class="ui-bar ui-bar-a">
+						<h3>Ручное управление</h3>
+					</div>
+					<div class="ui-body ui-body-a">
+						<div class="ui-grid-a">
+							<div class="ui-block-a">
+								<button
+									type="button"
+									id="btnOpen"
+									class="ui-btn ui-icon-carat-u ui-btn-icon-top ui-corner-all ui-shadow"
+								>
+									Открыть
+								</button>
+							</div>
+							<div class="ui-block-b">
+								<button
+									type="button"
+									id="btnClose"
+									class="ui-btn ui-icon-carat-d ui-btn-icon-top ui-corner-all ui-shadow"
+								>
+									Закрыть
+								</button>
+							</div>
+						</div>
+						<div class="ui-grid-solo">
+							<div class="ui-block-a">
+								<button
+									type="button"
+									id="btnStop"
+									class="ui-btn ui-icon-delete ui-btn-icon-top ui-corner-all ui-shadow"
+								>
+									Стоп
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!--Footer-->
+				<div
+					data-role="footer"
+					id="footer1"
+					data-position="fixed"
+					class="red-footer"
+				>
+					<div class="ui-bar">
+						<label id="labelCalibrate1"></label>
+						<h7 style="float: right">© 2024 Sector13</h7>
+					</div>
+				</div>
+				<!--/Footer-->
+				<!--Menu panel-->
+				<div
+					data-role="panel"
+					data-position-fixed="true"
+					data-display="overlay"
+					data-theme="a"
+					id="menu-panel"
+				>
+					<ul data-role="listview">
+						<li><a href="#about">О нас</a></li>
+						<li data-icon="delete">
+							<a href="#" data-rel="close">Закрыть</a>
+						</li>
+					</ul>
+				</div>
+				<!--/menu panel-->
+			</div>
+			<!--/main page content-->
+		</div>
+		<!--/main page-->
+		<!--Settings page-->
+		<div data-role="page" id="settings">
+			<div id="divSetting" data-role="header">
+				<h1>Настройка</h1>
+			</div>
+			<!--Settings content-->
+			<div data-role="main" class="ui-content">
+				<!--Calibrate header-->
+				<div class="ui-corner-all custom-corners">
+					<div class="ui-bar ui-bar-a">
+						<h3>Настройка длины шторы</h3>
+					</div>
+					<div class="ui-body ui-body-a">
+						<div>
+							<p>
+								Для настройки длины шторы необходимо вручную
+								опустить штору до нижнего края окна и нажать
+								<b>Настроить</b>. Перед настройкой убедитесь что
+								магнитный датчик установлен. Настройка
+								завершится когда штора полностью поднимется.
+								После настройки не рекомендутся
+								поднимать/опускать штору вручную.
+							</p>
+						</div>
+						<div>
+							<button
+								type="button"
+								id="btnCalibrate"
+								class="ui-btn ui-icon-gear ui-btn-icon-left ui-corner-all ui-shadow"
+							>
+								Настройка
+							</button>
+						</div>
+					</div>
+				</div>
+				<br />
+				<!--/calibrate header-->
+
+				<!--Timers header-->
+				<div class="ui-corner-all custom-corners">
+					<div class="ui-bar ui-bar-a">
+						<h3>Установка таймеров</h3>
+					</div>
+					<div class="ui-body ui-body-a">
+						<div id="timers">
+							<button
+								type="button"
+								id="btnAddTimer"
+								class="ui-btn ui-icon-plus ui-btn-icon-left ui-corner-all ui-shadow"
+							>
+								Добавить таймер
+							</button>
+
+							<!--Timers table-->
+							<table
+								data-role="table"
+								id="currentTimersTable"
+								data-mode="reflowtheadtbodyui-responsive"
+								class="table-stripe ui-shadow ui-responsive"
+							>
+								<tbody></tbody>
+							</table>
+							<!--/timers table-->
+						</div>
+					</div>
+				</div>
+				<!--/timers header-->
+			</div>
+			<!--/settings content-->
+			<!--Footer-->
+			<div
+				data-role="footer"
+				id="footer2"
+				data-position="fixed"
+				class="red-footer"
+			>
+				<div class="ui-bar">
+					<label id="labelCalibrate2"></label>
+					<h7 style="float: right">© 2024 Sector13</h7>
+				</div>
+			</div>
+			<!--/footer-->
+			<!--Timers popup-->
+			<div
+				id="setTimerPopup"
+				data-role="popup"
+				data-theme="a"
+				data-overlay-theme="b"
+				data-transition="flip"
+			>
+				<h2>Установите таймер и процент затемнения</h2>
+
+				<div class="ui-body ui-body-a">
+					<input
+						type="time"
+						data-clear-btn="true"
+						id="currentTimer"
+						value=""
+					/>
+				</div>
+
+				<div class="ui-body ui-body-a">
+					<input
+						type="range"
+						id="currentShade"
+						min="0"
+						max="100"
+						value="0"
+						data-highlight="true"
+					/>
+				</div>
+
+				<td>
+					<button
+						type="button"
+						id="btnOk"
+						class="ui-btn ui-icon-check ui-btn-icon-left ui-corner-all ui-shadow"
+					>
+						Установить
+					</button>
+
+					<button
+						type="button"
+						id="btnCancel"
+						class="ui-btn ui-icon-delete ui-btn-icon-left ui-corner-all ui-shadow"
+					>
+						Отмена
+					</button>
+				</td>
+			</div>
+
+			<!--Timers popup-->
+		</div>
+		<!--End of settings page-->
+	</body>
+</html>
