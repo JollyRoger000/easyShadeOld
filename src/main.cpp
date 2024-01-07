@@ -82,8 +82,6 @@ void onOTAStart()
 {
 	// Log when OTA has started
 	Serial.println("OTA update started!");
-	digitalWrite(LED_CONNECT, LOW);
-	// <Add your own code here>
 }
 
 void onOTAProgress(size_t current, size_t final)
