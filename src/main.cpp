@@ -52,7 +52,6 @@ time_t netHour;
 DynamicJsonDocument json(1024);
 DynamicJsonDocument timersDoc(1024);
 JsonArray timersArray = timersDoc.createNestedArray("timers");
-// JsonArray timersArray = timersDoc.to<JsonArray>();
 
 char ws_data[2048];
 size_t ws_len;
