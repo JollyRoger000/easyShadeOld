@@ -6,6 +6,7 @@
 #include <time.h>
 #include <DNSServer.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
 
 #define SM_DIR 27
 #define SM_STEP 25
@@ -48,9 +49,18 @@ time_t localHour;
 time_t netSec;
 time_t netMin;
 time_t netHour;
+time_t sunriseHour;
+time_t sunsetHour;
+time_t sunriseMin;
+time_t sunsetMin;
+time_t sunriseSec;
+time_t sunsetSec;
+String sunrise;
+String sunset;
 
 DynamicJsonDocument json(1024);
 DynamicJsonDocument timersDoc(1024);
+DynamicJsonDocument sunriseDoc(1024);
 JsonArray timersArray = timersDoc.createNestedArray("timers");
 
 char ws_data[2048];
@@ -61,6 +71,7 @@ int shade = 0;		// Tagret motor position in percent
 int currentPos = 0; // Current motor position
 int shadeLenght = 0;
 int nTimers = 0;
+int tz = 3;
 
 int calibrateCnt = 0;
 String calibrateStatus = "false";
@@ -390,18 +401,18 @@ void setup()
 	// Init SPIFFS
 	initSPIFFS();
 	// ... read settings file from SPIFFS
-	json = readJsonFile(SPIFFS, settingsPath);
+	// json = readJsonFile(SPIFFS, settingsPath);
 
-	// json["ssid"] = "YA31";
-	// json["pass"] = "audia3o765km190rus";
-	// json["ip"] = "192.168.68.201";
-	// json["gateway"] = "192.168.68.1";
-	// json["dns"] = "192.168.68.1";
-	// json["subnet"] = "255.255.255.0";
-	// json["shadeLenght"] = 0;
-	// json["targetPos"] = 0;
-	// json["shade"] = 0;
-	// json["calibrateStatus"] = "false";
+	json["ssid"] = "YA31";
+	json["pass"] = "audia3o765km190rus";
+	json["ip"] = "192.168.68.201";
+	json["gateway"] = "192.168.68.1";
+	json["dns"] = "192.168.68.1";
+	json["subnet"] = "255.255.255.0";
+	json["shadeLenght"] = 0;
+	json["targetPos"] = 0;
+	json["shade"] = 0;
+	json["calibrateStatus"] = "false";
 
 	Serial.println("Settings json file content: ");
 	serializeJson(json, Serial);
@@ -604,15 +615,15 @@ void setup()
 			Serial.println(WiFi.localIP());
 
 			Serial.print("Waiting for NTP time sync: ");
-			configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+			configTime(tz * 3600, 0, "pool.ntp.org", "time.nist.gov");
 			n = 0;
 			while (!getLocalTime(&timeinfo))
 			{
 				digitalWrite(LED_CONNECT, HIGH);
 				Serial.print('.');
-				delay(200);
+				delay(50);
 				digitalWrite(LED_CONNECT, LOW);
-				delay(200);
+				delay(50);
 				Serial.print(".");
 				n++;
 				if (n == 5)
@@ -646,16 +657,66 @@ void setup()
 					  { request->send(SPIFFS, "/index.html"); });
 			server.serveStatic("/", SPIFFS, "/");
 
-			// Start AsyncElegantOTA server for on air updates
-			ElegantOTA.begin(&server); // Start ElegantOTA
-			// ElegantOTA callbacks
-			ElegantOTA.onStart(onOTAStart);
-			ElegantOTA.onProgress(onOTAProgress);
-			ElegantOTA.onEnd(onOTAEnd);
-			// Start server
-			server.begin();
+			// GET request from sunrise-sunset API
+			Serial.print("Request to Sunrise-Sunset API...");
+			HTTPClient http;
+			int httpCode = 0;
+			n = 0;
+			while (httpCode != 200)
+			{
+				Serial.print('.');
+				http.begin("https://api.sunrise-sunset.org/json?lat=54.93583&lng=43.32352&date=today");
+				httpCode = http.GET();
+				n++;
+				if (n == 5)
+				{
+					Serial.println("Error get Sunrise-Sunset API. Rebooting...");
+					ESP.restart();
+				}
+			}
+			Serial.println();
+			Serial.println("Http code: " + (String)httpCode);
+			String msg = http.getString();
+			Serial.println("Sunrise-Sunset API message: " + msg);
+
+			if (deserializeJson(sunriseDoc, msg) == DeserializationError::Ok)
+			{
+				if (sunriseDoc["status"] == "OK")
+				{
+					sunrise = sunriseDoc["results"]["sunrise"].as<String>();
+					sunset = sunriseDoc["results"]["sunset"].as<String>();
+					sunriseHour = sunrise.substring(0, 1).toInt();
+					if (sunrise.endsWith("PM"))
+						sunriseHour += 12;
+					sunriseHour += tz;
+					sunriseMin = sunrise.substring(2, 4).toInt();
+					sunriseSec = sunrise.substring(5, 7).toInt();
+
+					sunsetHour = sunset.substring(0, 1).toInt();
+					if (sunset.endsWith("PM"))
+						sunsetHour += 12;
+					sunsetHour += tz;
+					sunsetMin = sunset.substring(2, 4).toInt();
+					sunsetSec = sunset.substring(5, 7).toInt();
+					Serial.println("Sunrise: " + (String)sunriseHour + ":" + (String)sunriseMin + ":" + (String)sunriseSec);
+					Serial.println("Sunset: " + (String)sunsetHour + ":" + (String)sunsetMin + ":" + (String)sunsetSec);
+				}
+				else
+					Serial.println("Error on Sunrise-Sunset API");
+			}
+			else
+				Serial.println("Error on deserialization json");
 		}
 	}
+	// Start AsyncElegantOTA server for on air updates
+	ElegantOTA.begin(&server); // Start ElegantOTA
+	// ElegantOTA callbacks
+	ElegantOTA.onStart(onOTAStart);
+	ElegantOTA.onProgress(onOTAProgress);
+	ElegantOTA.onEnd(onOTAEnd);
+	// Start server
+	server.begin();
+	Serial.println("HTTP server started...");
 }
 
 // Main loop
@@ -679,15 +740,68 @@ void loop()
 	else
 	{
 		digitalWrite(LED_CONNECT, HIGH);
+
 		if (timeSyncFlag)
 		{
 			timeSyncFlag = false;
+
+			// Get and sync local time
 			if (getLocalTime(&timeinfo))
 			{
 				localSec = timeinfo.tm_sec;
 				localMin = timeinfo.tm_min;
 				localHour = timeinfo.tm_hour;
 			}
+
+			// GET request from sunrise-sunset API
+			Serial.print("Request to Sunrise-Sunset API...");
+			HTTPClient http;
+			int httpCode = 0;
+			int n = 0;
+			while (httpCode != 200)
+			{
+				Serial.print('.');
+				http.begin("https://api.sunrise-sunset.org/json?lat=54.93583&lng=43.32352&date=today");
+				httpCode = http.GET();
+				n++;
+				if (n == 5)
+				{
+					Serial.println("Error get Sunrise-Sunset API.");
+					// ESP.restart();
+				}
+			}
+			Serial.println();
+			Serial.println("Http code: " + (String)httpCode);
+			String msg = http.getString();
+			Serial.println("Sunrise-Sunset API message: " + msg);
+
+			if (deserializeJson(sunriseDoc, msg) == DeserializationError::Ok)
+			{
+				if (sunriseDoc["status"] == "OK")
+				{
+					sunrise = sunriseDoc["results"]["sunrise"].as<String>();
+					sunset = sunriseDoc["results"]["sunset"].as<String>();
+					sunriseHour = sunrise.substring(0, 1).toInt();
+					if (sunrise.endsWith("PM"))
+						sunriseHour += 12;
+					sunriseHour += tz;
+					sunriseMin = sunrise.substring(2, 4).toInt();
+					sunriseSec = sunrise.substring(5, 7).toInt();
+
+					sunsetHour = sunset.substring(0, 1).toInt();
+					if (sunset.endsWith("PM"))
+						sunsetHour += 12;
+					sunsetHour += tz;
+					sunsetMin = sunset.substring(2, 4).toInt();
+					sunsetSec = sunset.substring(5, 7).toInt();
+					Serial.println("Sunrise: " + (String)sunriseHour + ":" + (String)sunriseMin + ":" + (String)sunriseSec);
+					Serial.println("Sunset: " + (String)sunsetHour + ":" + (String)sunsetMin + ":" + (String)sunsetSec);
+				}
+				else
+					Serial.println("Error on Sunrise-Sunset API");
+			}
+			else
+				Serial.println("Error on deserialization json");
 		}
 
 		// Check upper switch limit status
@@ -782,14 +896,18 @@ void loop()
 		if (timerInt)
 		{
 			// Serial.println("Current local time: " + (String)localHour + ":" + (String)localMin + ":" + (String)localSec);
-			for (int i = 0; i < nTimers; i++)
-			{
-				if (localHour == timersDoc["timers"][i][1].as<int>() && localMin == timersDoc["timers"][i][2].as<int>() && localSec == 0)
-				{
-					shade = timersDoc["timers"][i][3].as<int>();
-					Serial.printf("Set shade to: %d at %d:%d\n", shade, localHour, localMin);
-				}
-			}
+			// for (int i = 0; i < nTimers; i++)
+			// {
+			// 	if (localHour == timersDoc["timers"][i][1].as<int>() && localMin == timersDoc["timers"][i][2].as<int>() && localSec == 0)
+			// 	{
+			// 		shade = timersDoc["timers"][i][3].as<int>();
+			// 		Serial.printf("Set shade to: %d at %d:%d\n", shade, localHour, localMin);
+			// 	}
+			// }
+			if (localHour == sunriseHour && localMin == sunriseMin && localSec == sunriseSec)
+				shade = 20;
+			if (localHour == sunsetHour && localMin == sunsetMin && localSec == sunsetSec)
+				shade = 100;
 			timerInt = false;
 		}
 		// Request from client processing
