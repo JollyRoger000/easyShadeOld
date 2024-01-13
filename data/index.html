@@ -119,10 +119,12 @@
 		</div>
 		<!--/main page-->
 		<!--Settings page-->
+
 		<div data-role="page" id="settings">
 			<div id="divSetting" data-role="header">
 				<h1>Настройка</h1>
 			</div>
+
 			<!--Settings content-->
 			<div data-role="main" class="ui-content">
 				<!--Calibrate header-->
@@ -133,8 +135,8 @@
 					<div class="ui-body ui-body-a">
 						<div>
 							<p>
-								Для настройки длины необходимо вручную
-								опустить штору до нижнего края окна и нажать
+								Для настройки длины необходимо вручную опустить
+								штору до нижнего края окна и нажать
 								<b>Настройка длины</b>. Перед настройкой
 								убедитесь что магнитный датчик установлен.
 								Настройка завершится когда штора полностью
@@ -209,6 +211,30 @@
 				data-transition="flip"
 			>
 				<h2>Установите таймер и процент затемнения</h2>
+
+				<div>
+					<label
+						><input
+							type="radio"
+							name="radioGroup1"
+							id="radioSunrise"
+						/><span>Восход</span></label
+					>
+					<label
+						><input
+							type="radio"
+							name="radioGroup1"
+							id="radioSunset"
+						/><span>Закат</span></label
+					>
+					<label
+						><input
+							type="radio"
+							name="radioGroup1"
+							id="radioTimer"
+						/><span>По таймеру</span></label
+					>
+				</div>
 
 				<div class="ui-body ui-body-a">
 					<input

@@ -19,20 +19,14 @@ $(document).ready(function () {
 	$("#btnAddTimer").on("click", onAddTimerBtn);
 	$("#slider").on("slidestop", onSlider);
 	$("#settings").on("pageshow", getTimers);
-
-	// Delete current timer
-	$("#currentTimersTable").on("click", "tr", function () {
-		var id = $(this).find("td:first").text();
-		var msg = {
-			cmd: "deleteTimer",
-			id: id,
-		};
-		console.log(msg);
-		if (websocket.readyState == websocket.OPEN) {
-			websocket.send(JSON.stringify(msg));
-		}
-	});
+	//	$("#radioSunrise").on("change", onRadioSunriseChange);
+	$("#currentTimersTable").on("click", "tr", deleteTimer);
 });
+
+// function onRadioSunriseChange() {
+// 	var rez = $(this).val();
+// 	console.log(rez);
+// }
 
 // Send message for open
 function onOpen() {
@@ -85,6 +79,21 @@ function onSlider() {
 	var msg = {
 		cmd: "setShade",
 		shade: shade,
+	};
+	console.log(msg);
+	if (websocket.readyState == websocket.OPEN) {
+		websocket.send(JSON.stringify(msg));
+	}
+}
+
+// Delete current timer
+function deleteTimer() {
+	var id = $(this).find("td:first").text(); // First element in row
+	var time = $(this).find("td:eq(1)").text(); // Second rlrment in row
+	var msg = {
+		cmd: "deleteTimer",
+		time: time,
+		id: id,
 	};
 	console.log(msg);
 	if (websocket.readyState == websocket.OPEN) {
@@ -178,58 +187,89 @@ function onReceiveMessage(event) {
 		var hour = [];
 		var min = [];
 		var shade = [];
+		var onSunrise = data.onSunrise;
+		var onSunset = data.onSunset;
+		var shadeSunrise = data.shadeSunrise;
+		var shadeSunset = data.shadeSunset;
 
-		// Append timers to table
-		if (timers.length > 0) {
-			// Clear table
+		if (timers.length > 0 || onSunset || onSunrise) {
 			$("#currentTimersTable").empty();
 			// Append table header
 			$("#currentTimersTable").append(
 				"<tr><th>ID</th><th>Время</th><th>Затемнение</th></tr>"
 			);
-
-			for (let i = 0; i < timers.length; i++) {
-				// Get timer data from array
-				if (timers[i][0] != null) id[i] = timers[i][0];
-				if (timers[i][1] != null) hour[i] = timers[i][1];
-				if (timers[i][2] != null) min[i] = timers[i][2];
-				if (timers[i][3] != null) shade[i] = timers[i][3];
-
-				if (
-					id[i] != null &&
-					hour[i] != null &&
-					min[i] != null &&
-					shade[i] != null
-				) {
-					// Append table body
-					$("#currentTimersTable").append(
-						"<tr><td>" +
-							id[i] +
-							"</td><td>" +
-							hour[i] +
-							":" +
-							min[i] +
-							"</td><td>" +
-							shade[i] +
-							"</td></tr>"
-					);
-				}
-				console.log(
-					"Timer: " +
-						i +
-						"  id: " +
-						id[i] +
-						" hour: " +
-						hour[i] +
-						" min: " +
-						min[i]
+			if (onSunrise && shadeSunrise != null) {
+				$("#currentTimersTable").append(
+					"<tr><td>" +
+						"</td><td>" +
+						"Восход" +
+						"</td><td>" +
+						shadeSunrise +
+						"</td></tr>"
 				);
+				console.log("Timer on sunrise add");
 				$("#currentTimersTable").table("refresh");
 			}
+			if (onSunset && shadeSunset != null) {
+				$("#currentTimersTable").append(
+					"<tr><td>" +
+						"</td><td>" +
+						"Закат" +
+						"</td><td>" +
+						shadeSunset +
+						"</td></tr>"
+				);
+				console.log("Timer on sunset add");
+				$("#currentTimersTable").table("refresh");
+			}
+			if (timers.length > 0) {
+				for (let i = 0; i < timers.length; i++) {
+					// Get timer data from array
+					if (timers[i][0] != null) id[i] = timers[i][0];
+					if (timers[i][1] != null) hour[i] = timers[i][1];
+					if (timers[i][2] != null) min[i] = timers[i][2];
+					if (timers[i][3] != null) shade[i] = timers[i][3];
+
+					if (
+						id[i] != null &&
+						hour[i] != null &&
+						min[i] != null &&
+						shade[i] != null
+					) {
+						// Append table body
+						$("#currentTimersTable").append(
+							"<tr><td>" +
+								id[i] +
+								"</td><td>" +
+								hour[i] +
+								":" +
+								min[i] +
+								"</td><td>" +
+								shade[i] +
+								"</td></tr>"
+						);
+					}
+					console.log(
+						"Timer: " +
+							i +
+							"  id: " +
+							id[i] +
+							" hour: " +
+							hour[i] +
+							" min: " +
+							min[i]
+					);
+					$("#currentTimersTable").table("refresh");
+				}
+			}
 		} else {
-			console.log("No timers");
 			$("#currentTimersTable").empty();
+			$("#currentTimersTable").table("refresh");
 		}
+	} else {
+		console.log("No timers");
+		$("#currentTimersTable").empty();
+		$("#currentTimersTable").table("refresh");
 	}
 }
 
@@ -247,18 +287,53 @@ function addTimer() {
 	var id = new Date().getTime();
 	$("#setTimerPopup").popup("close");
 
-	if (hour != null && min != null && shade != null) {
-		var msg = {
-			cmd: "addTimer",
-			timer: [id, hour, min, shade],
-		};
-		if (websocket.readyState == websocket.OPEN) {
-			websocket.send(JSON.stringify(msg));
+	if ($("#radioSunrise").is(":checked")) {
+		$("#currentTimer").prop("disabled", true);
+		if (shade != null) {
+			var msg = {
+				cmd: "addSunrise",
+				shadeSunrise: shade,
+			};
+			if (websocket.readyState == websocket.OPEN) {
+				websocket.send(JSON.stringify(msg));
+			}
+			console.log(msg);
+		} else {
+			console.log("Error:shade data is null");
+			alert("Неверное значение затемнения");
 		}
-		console.log(msg);
-	} else {
-		console.log("Error: timer data is null");
-		alert("Неверное значение времени или затемнения");
+	}
+	if ($("#radioSunset").is(":checked")) {
+		$("#currentTimer").prop("disabled", true);
+		if (shade != null) {
+			var msg = {
+				cmd: "addSunset",
+				shadeSunset: shade,
+			};
+			if (websocket.readyState == websocket.OPEN) {
+				websocket.send(JSON.stringify(msg));
+			}
+			console.log(msg);
+		} else {
+			console.log("Error:shade data is null");
+			alert("Неверное значение затемнения");
+		}
+	}
+	if ($("#radioTimer").is(":checked")) {
+		$("#currentTimer").prop("disabled", false);
+		if (hour != null && min != null && shade != null) {
+			var msg = {
+				cmd: "addTimer",
+				timer: [id, hour, min, shade],
+			};
+			if (websocket.readyState == websocket.OPEN) {
+				websocket.send(JSON.stringify(msg));
+			}
+			console.log(msg);
+		} else {
+			console.log("Error: timer or shade data is null");
+			alert("Неверное значение времени или затемнения");
+		}
 	}
 }
 
