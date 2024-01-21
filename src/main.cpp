@@ -471,6 +471,52 @@ SunrieseSunsetTime getSunriseSunset(String req, int tz)
 	}
 	return _time;
 }
+
+String translateEncryptionType(wifi_auth_mode_t encryptionType)
+{
+	switch (encryptionType)
+	{
+	case (WIFI_AUTH_OPEN):
+		return "Open";
+	case (WIFI_AUTH_WEP):
+		return "WEP";
+	case (WIFI_AUTH_WPA_PSK):
+		return "WPA_PSK";
+	case (WIFI_AUTH_WPA2_PSK):
+		return "WPA2_PSK";
+	case (WIFI_AUTH_WPA_WPA2_PSK):
+		return "WPA_WPA2_PSK";
+	case (WIFI_AUTH_WPA2_ENTERPRISE):
+		return "WPA2_ENTERPRISE";
+	}
+}
+
+DynamicJsonDocument scanNetworks()
+{
+	DynamicJsonDocument doc(1024);
+	int numberOfNetworks = WiFi.scanNetworks();
+
+	Serial.print("Number of networks found: ");
+	Serial.println(numberOfNetworks);
+
+	for (int i = 0; i < numberOfNetworks; i++)
+	{
+		Serial.print("Network name: ");
+		doc[i] = WiFi.SSID(i);
+		Serial.println(WiFi.SSID(i));
+
+		Serial.print("Signal strength: ");
+		Serial.println(WiFi.RSSI(i));
+
+		Serial.print("MAC address: ");
+		Serial.println(WiFi.BSSIDstr(i));
+
+		Serial.println("-----------------------");
+	}
+
+	return doc;
+}
+
 // Setup
 void setup()
 {
@@ -522,6 +568,8 @@ void setup()
 		Serial.println("Gateway: " + String(gateway));
 		Serial.println("DNS: " + String(dns));
 		Serial.println("Subnet: " + String(subnet));
+		Serial.print("Hostname: ");
+		Serial.println(WiFi.getHostname());
 
 		shadeLenght = json["shadeLenght"];
 		targetPos = json["targetPos"];
@@ -571,11 +619,12 @@ void setup()
 	{
 		init_flag = false;
 
-		// String ap_ssid = WiFi.getHostname();
-		String ap_ssid = WiFi.macAddress();
-		Serial.printf("Setting Access Point: %s\n", ap_ssid.c_str());
-		// WiFi.softAP(WiFi.macAddress(), NULL);
-		WiFi.softAP(ap_ssid.c_str(), NULL);
+		Serial.print("Setting Access Point: ");
+		Serial.println(WiFi.getHostname());
+		WiFi.softAP(WiFi.getHostname(), NULL);
+
+		DynamicJsonDocument networks = scanNetworks();
+		serializeJson(networks, Serial);
 
 		IPAddress IP = WiFi.softAPIP();
 		Serial.print("AP IP address: ");
