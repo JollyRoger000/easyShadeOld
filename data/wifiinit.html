@@ -3,51 +3,117 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Подключение</title>
-		<link rel="stylesheet" href="style.css" />
+		<title>Инициализация</title>
+		<style>
+			body {
+				background-color: #5cb85c;
+				font-family: Arial, sans-serif;
+			}
+
+			.container {
+				max-width: 600px;
+				margin: auto;
+				padding: 20px;
+				background-color: #fff;
+				border-radius: 8px;
+			}
+
+			.title {
+				font-size: 36px;
+				margin-bottom: 10px;
+			}
+
+			.subtitle {
+				font-size: 20px;
+				color: #6c757d;
+				margin-bottom: 20px;
+			}
+
+			.form {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 20px;
+				margin-bottom: 10px;
+			}
+
+			.form label {
+				font-size: 18px;
+				color: #212529;
+			}
+
+			.form input,
+			.form select,
+			.form textarea {
+				padding: 10px;
+				border: 1px solid #dee2e6;
+				border-radius: 8px;
+				font-size: 18px;
+			}
+
+			.form button {
+				padding: 15px 20px;
+				background-color: #212529;
+				color: #fff;
+				border: none;
+				border-radius: 8px;
+				font-size: 18px;
+				cursor: pointer;
+			}
+		</style>
 	</head>
 	<body>
-		<form action="/" method="post">
-			<div>
-				<h2>Подключение к сети</h2>
-			</div>
-			<div class="main">
-				<div class="field">
-					<label for="ssid">SSID</label>
-					<input type="text" id="ssid" name="ssid" />
-					<!-- <input list="ssid1" name="ssid1" title="wifi networks" />
-					<datalist id="ssid1">
-						<option value="1"></option>
-						<option value="2"></option>
-					</datalist> -->
-				</div>
-				<div class="field">
-					<label for="pass">Пароль</label>
-					<input type="text" id="pass" name="pass" />
-				</div>
-				<div class="field">
-					<label for="ip">IP</label>
-					<input type="text" id="ip" name="ip" />
-				</div>
-				<div class="field">
-					<label for="gateway">Gateway</label>
-					<input type="text" id="gateway" name="gateway" />
-				</div>
-				<div class="field">
-					<label for="dns">DNS</label>
-					<input type="text" id="dns" name="dns" />
-				</div>
-				<div class="field">
-					<label for="subnet">Subnet</label>
-					<input type="text" id="subnet" name="subnet" />
-				</div>
-				<div>
-					<input type="submit" value="Подключить" />
-				</div>
-				<footer>
-					<p>© 2023 VRLab</p>
-				</footer>
-			</div>
-		</form>
+		<div class="container">
+			<h1 class="title">Подключение к сети</h1>
+			<p class="subtitle">Введите параметры подключения к сети</p>
+			<form action="/" method="post" class="form">
+				<label for="ssid">SSID</label>
+				<input
+					type="text"
+					id="ssid"
+					name="ssid"
+					placeholder="Имя сети"
+				/>
+				<label for="pass">Пароль</label>
+				<input
+					type="text"
+					id="pass"
+					name="password"
+					placeholder="Пароль"
+				/>
+				<label for="ip">IP</label>
+				<input type="text" id="ip" name="ip" placeholder="IP адрес" />
+				<label for="ip">Шлюз</label>
+				<input
+					type="text"
+					id="gateway"
+					name="gateway"
+					placeholder="Шлюз"
+				/>
+				<label for="dns">DNS</label>
+				<input type="text" id="dns" name="dns" placeholder="DNS" />
+				<label for="subnet">Subnet</label>
+				<input
+					type="text"
+					id="subnet"
+					name="subnet"
+					placeholder="Маска подсети"
+				/>
+
+				<!-- <label for="pronoun">Pronoun</label>
+				<select id="pronoun" name="pronoun">
+					<option value="">Select your pronoun</option>
+					<option value="he">He</option>
+					<option value="she">She</option>
+					<option value="they">They</option>
+				</select>
+				<label for="message">Message</label>
+				<textarea
+					id="message"
+					name="message"
+					placeholder="Enter your message"
+				></textarea> -->
+				<input type="submit" value="Подключение" />
+			</form>
+		</div>
 	</body>
 </html>

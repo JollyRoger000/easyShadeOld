@@ -626,9 +626,9 @@ void setup()
 		DynamicJsonDocument networks = scanNetworks();
 		serializeJson(networks, Serial);
 
-		IPAddress IP = WiFi.softAPIP();
+		Serial.println();
 		Serial.print("AP IP address: ");
-		Serial.println(IP);
+		Serial.println(WiFi.softAPIP());
 
 		// Route WiFi settings page
 		server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
