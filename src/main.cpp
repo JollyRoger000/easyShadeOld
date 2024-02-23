@@ -6,6 +6,7 @@
 #include <time.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <PubSubClient.h>
 
 #define SM_DIR 27
 #define SM_STEP 25
@@ -18,22 +19,9 @@
 #define MOVE_DOWN 2
 #define MOVE_CALIBRATE 3
 
-const char *PARAM_INPUT_1 = "ssid";
-const char *PARAM_INPUT_2 = "pass";
-const char *PARAM_INPUT_3 = "ip";
-const char *PARAM_INPUT_4 = "gateway";
-const char *PARAM_INPUT_5 = "dns";
-const char *PARAM_INPUT_6 = "subnet";
-
-const char *settingsPath = "/settings.json";
+const char *shadePath = "/shade.json";
 const char *timersPath = "/timers.json";
-
-const char *ssid;
-const char *pass;
-const char *ip;
-const char *gateway;
-const char *dns;
-const char *subnet;
+const char *csPath = "/connection.json";
 
 IPAddress localIP;
 IPAddress localGateway;
@@ -65,8 +53,22 @@ struct SunrieseSunsetTime
 
 SunrieseSunsetTime sstime;
 
-DynamicJsonDocument json(1024);
+struct ConnectionSettings
+{
+	const char *ssid;
+	const char *pass;
+	const char *ip;
+	const char *gateway;
+	const char *dns;
+	const char *subnet;
+};
+
+ConnectionSettings cs;
+
+DynamicJsonDocument shadeDoc(1024);
+DynamicJsonDocument csDoc(1024);
 DynamicJsonDocument timersDoc(1024);
+DynamicJsonDocument networksDoc(1024);
 JsonArray timersArray = timersDoc.createNestedArray("timers");
 
 unsigned long currMillis;
@@ -108,7 +110,6 @@ void onOTAStart()
 
 void onOTAProgress(size_t current, size_t final)
 {
-
 	// Log every 1 second
 	if (millis() - ota_progress_millis > 1000)
 	{
@@ -160,7 +161,9 @@ DynamicJsonDocument readJsonFile(fs::FS &fs, const char *path)
 // Write file to SPIFFS function
 void writeJsonFile(fs::FS &fs, const char *path, DynamicJsonDocument json)
 {
-	Serial.printf("Save json file: %s", path);
+	Serial.printf("Save json file: %s\n", path);
+	Serial.println("File content: ");
+	serializeJson(json, Serial);
 
 	File file = fs.open(path, FILE_WRITE);
 	if (!file)
@@ -187,9 +190,41 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 		Serial.println("WebSocket message received: " + msg);
 
 		// Deserialize JSON object from string
-		DynamicJsonDocument doc(128);
+		DynamicJsonDocument doc(1024);
 		if (deserializeJson(doc, msg) == DeserializationError::Ok)
 		{
+			if (doc["cmd"] == "auth")
+			{
+				cs.ssid = doc["ssid"];
+				csDoc["ssid"] = cs.ssid;
+				Serial.println("Set SSID: " + String(cs.ssid));
+				cs.pass = doc["pass"];
+				csDoc["pass"] = cs.pass;
+				Serial.println("Set password: " + String(cs.pass));
+				cs.ip = doc["ip"];
+				csDoc["ip"] = cs.ip;
+				Serial.println("Set IP: " + String(cs.ssid));
+				cs.gateway = doc["gateway"];
+				csDoc["gateway"] = cs.gateway;
+				Serial.println("Set gateway: " + String(cs.gateway));
+				cs.dns = doc["dns"];
+				csDoc["dns"] = cs.dns;
+				Serial.println("Set DNS: " + String(cs.dns));
+				cs.subnet = doc["subnet"];
+				csDoc["subnet"] = cs.subnet;
+				Serial.println("Set subnet mask: " + String(cs.subnet));
+				writeJsonFile(SPIFFS, csPath, csDoc);
+
+				shadeDoc["shadeLenght"] = 0;
+				shadeDoc["targetPos"] = 0;
+				shadeDoc["shade"] = 0;
+				shadeDoc["calibrateStatus"] = "false";
+				writeJsonFile(SPIFFS, shadePath, shadeDoc);
+
+				delay(3000);
+				Serial.println("ESP rebooting...");
+				ESP.restart();
+			}
 			if (doc["cmd"] == "open")
 			{
 				Serial.print("Request from client to open...\n");
@@ -197,10 +232,10 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 				{
 					// Set zero position
 					shade = 0;
-					json["shade"] = shade;
+					shadeDoc["shade"] = shade;
 
 					// Serialize JSON object to string and send to client
-					ws_len = serializeJson(json, ws_data);
+					ws_len = serializeJson(shadeDoc, ws_data);
 					ws.textAll(ws_data, ws_len);
 				}
 			}
@@ -212,10 +247,10 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 				{
 					// Set max position
 					shade = 100;
-					json["shade"] = shade;
+					shadeDoc["shade"] = shade;
 
 					// Serialize JSON object to string and send to client
-					ws_len = serializeJson(json, ws_data);
+					ws_len = serializeJson(shadeDoc, ws_data);
 					ws.textAll(ws_data, ws_len);
 				}
 			}
@@ -225,11 +260,11 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 				Serial.print("Request from client to calibrate shade lenght...\n");
 				moveState = MOVE_CALIBRATE;
 				calibrateStatus = "progress";
-				json["calibrateStatus"] = calibrateStatus;
+				shadeDoc["calibrateStatus"] = calibrateStatus;
 				calibrateCnt = 0;
 
 				// Serialize JSON object to string and send to client
-				ws_len = serializeJson(json, ws_data);
+				ws_len = serializeJson(shadeDoc, ws_data);
 				ws.textAll(ws_data, ws_len);
 			}
 
@@ -240,11 +275,11 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 				if (calibrateStatus == "progress")
 				{
 					calibrateStatus = "false";
-					json["calibrateStatus"] = calibrateStatus;
-					writeJsonFile(SPIFFS, settingsPath, json);
+					shadeDoc["calibrateStatus"] = calibrateStatus;
+					writeJsonFile(SPIFFS, shadePath, shadeDoc);
 
 					// Serialize JSON object to string and send to client
-					ws_len = serializeJson(json, ws_data);
+					ws_len = serializeJson(shadeDoc, ws_data);
 					ws.textAll(ws_data, ws_len);
 				}
 				if (calibrateStatus == "true")
@@ -252,12 +287,12 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 					// Set current position as target and save to file
 					targetPos = currentPos;
 					shade = (int)(100.0 * targetPos / shadeLenght);
-					json["targetPos"] = targetPos;
-					json["shade"] = shade;
-					writeJsonFile(SPIFFS, settingsPath, json);
+					shadeDoc["targetPos"] = targetPos;
+					shadeDoc["shade"] = shade;
+					writeJsonFile(SPIFFS, shadePath, shadeDoc);
 
 					// Serialize JSON object to string and send to client
-					ws_len = serializeJson(json, ws_data);
+					ws_len = serializeJson(shadeDoc, ws_data);
 					ws.textAll(ws_data, ws_len);
 				}
 			}
@@ -268,8 +303,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 				shade = doc["shade"];
 
 				// Serialize JSON object to string and send to client
-				json["shade"] = shade;
-				ws_len = serializeJson(json, ws_data);
+				shadeDoc["shade"] = shade;
+				ws_len = serializeJson(shadeDoc, ws_data);
 				ws.textAll(ws_data, ws_len);
 			}
 
@@ -385,20 +420,30 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 		Serial.printf("Client [%u] is connected %s\n", client->id(), client->remoteIP().toString());
 
 		// Serialize object to JSON string and send to client
-		ws_len = serializeJson(json, ws_data);
-		ws.textAll(ws_data, ws_len);
-		ws_len = serializeJson(timersDoc, ws_data);
-		ws.textAll(ws_data, ws_len);
-
+		if (cs.ssid == 0)
+		{
+			ws_len = serializeJson(networksDoc, ws_data);
+			ws.textAll(ws_data, ws_len);
+		}
+		else
+		{
+			ws_len = serializeJson(shadeDoc, ws_data);
+			ws.textAll(ws_data, ws_len);
+			ws_len = serializeJson(timersDoc, ws_data);
+			ws.textAll(ws_data, ws_len);
+		}
 		break;
+
 	// Client disconnected from server
 	case WS_EVT_DISCONNECT:
 		Serial.printf("Client [%u] disconnected\n", client->id());
 		break;
+
 	// Error occured
 	case WS_EVT_ERROR:
 		Serial.printf("Client [%u] error(%u): %s\n", client->id(), *((uint16_t *)arg), (char *)data);
 		break;
+
 	// Message received from client
 	case WS_EVT_DATA:
 		handleWebSocketMessage(arg, data, len);
@@ -472,28 +517,10 @@ SunrieseSunsetTime getSunriseSunset(String req, int tz)
 	return _time;
 }
 
-String translateEncryptionType(wifi_auth_mode_t encryptionType)
-{
-	switch (encryptionType)
-	{
-	case (WIFI_AUTH_OPEN):
-		return "Open";
-	case (WIFI_AUTH_WEP):
-		return "WEP";
-	case (WIFI_AUTH_WPA_PSK):
-		return "WPA_PSK";
-	case (WIFI_AUTH_WPA2_PSK):
-		return "WPA2_PSK";
-	case (WIFI_AUTH_WPA_WPA2_PSK):
-		return "WPA_WPA2_PSK";
-	case (WIFI_AUTH_WPA2_ENTERPRISE):
-		return "WPA2_ENTERPRISE";
-	}
-}
-
-DynamicJsonDocument scanNetworks()
+JsonArray scanNetworks()
 {
 	DynamicJsonDocument doc(1024);
+	JsonArray array = doc.createNestedArray();
 	int numberOfNetworks = WiFi.scanNetworks();
 
 	Serial.print("Number of networks found: ");
@@ -502,7 +529,7 @@ DynamicJsonDocument scanNetworks()
 	for (int i = 0; i < numberOfNetworks; i++)
 	{
 		Serial.print("Network name: ");
-		doc[i] = WiFi.SSID(i);
+		array.add(WiFi.SSID(i));
 		Serial.println(WiFi.SSID(i));
 
 		Serial.print("Signal strength: ");
@@ -514,7 +541,7 @@ DynamicJsonDocument scanNetworks()
 		Serial.println("-----------------------");
 	}
 
-	return doc;
+	return array;
 }
 
 // Setup
@@ -536,55 +563,73 @@ void setup()
 
 	// Init SPIFFS
 	initSPIFFS();
-	// ... read settings file from SPIFFS
-	json = readJsonFile(SPIFFS, settingsPath);
 
-	// json["ssid"] = "YA31";
-	// json["pass"] = "audia3o765km190rus";
-	// json["ip"] = "192.168.68.201";
-	// json["gateway"] = "192.168.68.1";
-	// json["dns"] = "192.168.68.1";
-	// json["subnet"] = "255.255.255.0";
-	// json["shadeLenght"] = 0;
-	// json["targetPos"] = 0;
-	// json["shade"] = 0;
-	// json["calibrateStatus"] = "false";
-
-	Serial.println("Settings json file content: ");
-	serializeJson(json, Serial);
-
-	if (json != nullptr)
+	// Read connection settings file
+	csDoc = readJsonFile(SPIFFS, csPath);
+	Serial.println("Read connection settings file...");
+	Serial.println("File content: ");
+	serializeJson(csDoc, Serial);
+	Serial.println();
+	if (csDoc != nullptr)
 	{
-		ssid = json["ssid"];
-		pass = json["pass"];
-		ip = json["ip"];
-		gateway = json["gateway"];
-		subnet = json["subnet"];
-		dns = json["dns"];
+		cs.ssid = csDoc["ssid"];
+		cs.pass = csDoc["pass"];
+		cs.ip = csDoc["ip"];
+		cs.gateway = csDoc["gateway"];
+		cs.dns = csDoc["dns"];
+		cs.subnet = csDoc["subnet"];
 
-		Serial.println("SSID: " + String(ssid));
-		Serial.println("Password: " + String(pass));
-		Serial.println("IP Address: " + String(ip));
-		Serial.println("Gateway: " + String(gateway));
-		Serial.println("DNS: " + String(dns));
-		Serial.println("Subnet: " + String(subnet));
+		Serial.println("SSID: " + String(cs.ssid));
+		Serial.println("Password: " + String(cs.pass));
+		Serial.println("IP Address: " + String(cs.ip));
+		Serial.println("Gateway: " + String(cs.gateway));
+		Serial.println("DNS: " + String(cs.dns));
+		Serial.println("Subnet: " + String(cs.subnet));
 		Serial.print("Hostname: ");
 		Serial.println(WiFi.getHostname());
+	}
 
-		shadeLenght = json["shadeLenght"];
-		targetPos = json["targetPos"];
-		shade = json["shade"];
-		calibrateStatus = json["calibrateStatus"].as<String>();
+	// Read shade settings file
+	shadeDoc = readJsonFile(SPIFFS, shadePath);
+	Serial.println("Read shade settings file...");
+	Serial.println("File content: ");
+	serializeJson(shadeDoc, Serial);
+	Serial.println();
+	if (shadeDoc != nullptr)
+	{
+		shadeLenght = shadeDoc["shadeLenght"];
+		targetPos = shadeDoc["targetPos"];
+		shade = shadeDoc["shade"];
+		calibrateStatus = shadeDoc["calibrateStatus"].as<String>();
 		moveState = MOVE_STOP;
 		currentPos = targetPos;
 
 		Serial.println("Shade lenght: " + String(shadeLenght));
 		Serial.println("Current position: " + String(currentPos));
+		Serial.println("Current shade: " + String(shade));
 		Serial.println("Calibrate flag: " + calibrateStatus);
 	}
 	else
 	{
 		Serial.println("Error reading settings file");
+		shadeLenght = 0;
+		targetPos = 0;
+		currentPos = 0;
+		shade = 0;
+		calibrateStatus = "false";
+		moveState = MOVE_STOP;
+
+		Serial.println("Shade lenght: " + String(shadeLenght));
+		Serial.println("Current position: " + String(currentPos));
+		Serial.println("Current shade: " + String(shade));
+		Serial.println("Calibrate flag: " + calibrateStatus);
+
+		shadeDoc["shadeLenght"] = shadeLenght;
+		shadeDoc["targetPos"] = targetPos;
+		shadeDoc["shade"] = shade;
+		shadeDoc["calibrateStatus"] = calibrateStatus;
+
+		writeJsonFile(SPIFFS, shadePath, shadeDoc);
 	}
 
 	// Read saving timers from SPIFFS and add to current timers array
@@ -615,7 +660,7 @@ void setup()
 	}
 
 	// If ssid is empty create access point
-	if (ssid == 0)
+	if (cs.ssid == 0)
 	{
 		init_flag = false;
 
@@ -623,93 +668,23 @@ void setup()
 		Serial.println(WiFi.getHostname());
 		WiFi.softAP(WiFi.getHostname(), NULL);
 
-		DynamicJsonDocument networks = scanNetworks();
-		serializeJson(networks, Serial);
+		networksDoc = scanNetworks();
+		Serial.println("Networks:");
+		serializeJson(networksDoc, Serial);
 
 		Serial.println();
 		Serial.print("AP IP address: ");
 		Serial.println(WiFi.softAPIP());
 
+		// Connect AsyncWebSocket
+		ws.onEvent(onEvent);
+		server.addHandler(&ws);
+
 		// Route WiFi settings page
 		server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-				  { request->send(SPIFFS, "/wifiinit.html", "text/html"); });
+				  { request->send(SPIFFS, "/wifiinit.html"); });
 
 		server.serveStatic("/", SPIFFS, "/");
-
-		// POST processing
-		server.on("/", HTTP_POST, [](AsyncWebServerRequest *request)
-				  {
-	    	int params = request->params();
-	  		for(int i = 0; i < params; i ++)
-	  		{
-	    		AsyncWebParameter* p = request->getParam(i);
-	    		if(p->isPost())
-				{
-	      			// HTTP POST ssid value
-	      			if (p->name() == PARAM_INPUT_1)
-					{
-	        			ssid = p->value().c_str();
-	        			Serial.print("SSID set to: ");
-	        			Serial.println(ssid);
-						json["ssid"] = ssid;
-						json["shadeLenght"] = 0;
-						json["targetPos"] = 0;
-						json["shade"] = 0;
-						json["calibrateStatus"] = "false";
-	        			writeJsonFile(SPIFFS, settingsPath, json);
-	     	 		}
-	      			// HTTP POST password value
-	      			if (p->name() == PARAM_INPUT_2)
-					{
-	        			pass = p->value().c_str();
-	        			Serial.print("Password set to: ");
-	        			Serial.println(pass);
-						json["pass"] = pass;
-	        			writeJsonFile(SPIFFS, settingsPath, json);
-	      			}
-	      			// HTTP POST ip value
-	      			if (p->name() == PARAM_INPUT_3)
-					{
-	        			ip = p->value().c_str();
-	        			Serial.print("IP Address set to: ");
-	        			Serial.println(ip);
-						json["ip"] = ip;
-	        			writeJsonFile(SPIFFS, settingsPath, json);
-	      			}
-					// HTTP POST gateway value
-	      			if (p->name() == PARAM_INPUT_4)
-					{
-	        			gateway = p->value().c_str();
-	        			Serial.print("Gateway set to: ");
-	        			Serial.println(gateway);
-						json["gateway"] = gateway;
-	        			writeJsonFile(SPIFFS, settingsPath, json);
-	      			}
-					// HTTP POST dns value
-					if(p->name() == PARAM_INPUT_5)
-					{
-						dns = p->value().c_str();
-	        			Serial.print("DNS set to: ");
-	        			Serial.println(dns);
-						json["dns"] = dns;
-	        			writeJsonFile(SPIFFS, settingsPath, json);
-					}
-					// HTTP POST subnet value
-					if(p->name() == PARAM_INPUT_6)
-					{
-						subnet  = p->value().c_str();
-	        			Serial.print("Subnet set to: ");
-	        			Serial.println(subnet);
-						json["subnet"] = subnet;
-	        			writeJsonFile(SPIFFS, settingsPath, json);
-					}
-	      			//Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
-	    		}
-	  		}
-	  	//	request->send(200, "text/plain", "ESP rebooting. Connect to SSID: " + String(ssid1) + " IP: " + String(ip1));
-	  		request->send(200, "text/plain", "ESP rebooting");
-	  		delay(3000);
-	  		ESP.restart(); });
 		server.begin();
 	}
 
@@ -719,10 +694,10 @@ void setup()
 		init_flag = true;
 
 		WiFi.mode(WIFI_STA);
-		localIP.fromString(ip);
-		localDNS.fromString(dns);
-		localGateway.fromString(gateway);
-		localSubnet.fromString(subnet);
+		localIP.fromString(cs.ip);
+		localDNS.fromString(cs.dns);
+		localGateway.fromString(cs.gateway);
+		localSubnet.fromString(cs.subnet);
 
 		if (!WiFi.config(localIP, localGateway, localSubnet, localDNS))
 		{
@@ -732,12 +707,12 @@ void setup()
 		{
 			Serial.println("Config WiFi success");
 
-			WiFi.begin(ssid, pass);
+			WiFi.begin(cs.ssid, cs.pass);
 			Serial.print("Default ESP32 MAC Address: ");
 			Serial.println(WiFi.macAddress());
 
 			// Try to connect to wifi with timeout 10 sec
-			Serial.printf("Try to connect: %s ", String(ssid));
+			Serial.printf("Try to connect: %s ", String(cs.ssid));
 			currMillis = millis();
 			prevMillis = currMillis;
 			while (WiFi.status() != WL_CONNECTED)
@@ -759,7 +734,7 @@ void setup()
 			digitalWrite(LED_CONNECT, HIGH);
 
 			Serial.println(" -success");
-			Serial.printf("Connected to WiFi: %s", String(ssid));
+			Serial.printf("Connected to WiFi: %s", String(cs.ssid));
 			Serial.println("");
 			Serial.print("Local IP: ");
 			Serial.println(WiFi.localIP());
@@ -826,9 +801,9 @@ void setup()
 			Serial.println(" -success");
 			Serial.println("Sunrise: " + sstime.strSunrise24);
 			Serial.println("Sunset: " + sstime.strSunset24);
-			json["sunrise"] = sstime.strSunrise24;
-			json["sunset"] = sstime.strSunset24;
-			ws_len = serializeJson(json, ws_data);
+			shadeDoc["sunrise"] = sstime.strSunrise24;
+			shadeDoc["sunset"] = sstime.strSunset24;
+			ws_len = serializeJson(shadeDoc, ws_data);
 			ws.textAll(ws_data, ws_len);
 		}
 
@@ -915,9 +890,9 @@ void loop()
 			Serial.println(" -success");
 			Serial.println("Sunrise: " + sstime.strSunrise12);
 			Serial.println("Sunset: " + sstime.strSunset12);
-			json["sunrise"] = sstime.strSunrise24;
-			json["sunset"] = sstime.strSunset24;
-			ws_len = serializeJson(json, ws_data);
+			shadeDoc["sunrise"] = sstime.strSunrise24;
+			shadeDoc["sunset"] = sstime.strSunset24;
+			ws_len = serializeJson(shadeDoc, ws_data);
 			ws.textAll(ws_data, ws_len);
 		}
 
@@ -935,12 +910,12 @@ void loop()
 			{
 				calibrateStatus = "true";
 				// Save calibrate status
-				json["shadeLenght"] = shadeLenght;
-				json["calibrateStatus"] = "true";
-				json["targetPos"] = currentPos;
-				json["shade"] = shade;
-				writeJsonFile(SPIFFS, settingsPath, json);
-				ws_len = serializeJson(json, ws_data);
+				shadeDoc["shadeLenght"] = shadeLenght;
+				shadeDoc["calibrateStatus"] = "true";
+				shadeDoc["targetPos"] = currentPos;
+				shadeDoc["shade"] = shade;
+				writeJsonFile(SPIFFS, shadePath, shadeDoc);
+				ws_len = serializeJson(shadeDoc, ws_data);
 				ws.textAll(ws_data, ws_len);
 			}
 		}
@@ -964,12 +939,12 @@ void loop()
 				moveState = MOVE_STOP;
 				if (!targetFlag)
 				{
-					json["targetPos"] = targetPos;
-					json["shade"] = shade;
-					writeJsonFile(SPIFFS, settingsPath, json);
+					shadeDoc["targetPos"] = targetPos;
+					shadeDoc["shade"] = shade;
+					writeJsonFile(SPIFFS, shadePath, shadeDoc);
 
 					// Serialize JSON object to string and send to client
-					ws_len = serializeJson(json, ws_data);
+					ws_len = serializeJson(shadeDoc, ws_data);
 					ws.textAll(ws_data, ws_len);
 				}
 				targetFlag = true;

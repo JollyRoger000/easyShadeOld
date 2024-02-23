@@ -4,75 +4,86 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Инициализация</title>
-		<style>
-			body {
-				background-color: #5cb85c;
-				font-family: Arial, sans-serif;
+
+		<link rel="stylesheet" href="jquery.mobile-1.4.5.min.css" />
+		<script src="jquery-1.11.1.min.js"></script>
+		<script src="jquery.mobile-1.4.5.min.js"></script>
+
+		<script>
+			var gateway = `ws://${window.location.hostname}/ws`;
+			var websocket;
+			document.addEventListener("DOMContentLoaded", () => {
+				console.log("Autorization page loaded");
+				initWebSocket();
+				// const select = document.getElementById("ssid");
+				// for (let i = 0; i < 5; i++) {
+				// 	const opt = document.createElement("option");
+				// 	opt.value = i;
+				// 	opt.innerHTML = i;
+				// 	select.appendChild(opt);
+				// }
+			});
+
+			// Initialize a WebSocket connection.
+			function initWebSocket() {
+				console.log("Trying to open a WebSocket connection…");
+				websocket = new WebSocket(gateway);
+				websocket.onopen = onSocketOpen;
+				websocket.onclose = onSocketClose;
+				websocket.onmessage = onReceiveMessage;
 			}
 
-			.container {
-				max-width: 600px;
-				margin: auto;
-				padding: 20px;
-				background-color: #fff;
-				border-radius: 8px;
+			// Called when the connection is open.
+			function onSocketOpen() {
+				console.log("Connection opened");
 			}
 
-			.title {
-				font-size: 36px;
-				margin-bottom: 10px;
+			// Called when the connection is closed.
+			function onSocketClose() {
+				console.log("Connection closed");
+				setTimeout(initWebSocket, 2000);
 			}
-
-			.subtitle {
-				font-size: 20px;
-				color: #6c757d;
-				margin-bottom: 20px;
+			function onReceiveMessage(event) {
+				var data = [];
+				data = JSON.parse(event.data);
+				console.log("esp message: " + data);
+				const select = document.getElementById("ssid");
+				for (var i = 0; i < data.lenght; i++) {
+					console.log(data[i]);
+					const opt = document.createElement("option");
+					opt.value = data[i];
+					opt.innerHTML = data[i];
+					select.appendChild(opt);
+				}
 			}
-
-			.form {
-				display: grid;
-				grid-template-columns: 1fr 1fr;
-				gap: 20px;
-				margin-bottom: 10px;
+			function onSubmit() {
+				console.log("Submit form");
+				var msg = {
+					cmd: "auth",
+					ssid: document.getElementById("ssid").value,
+					pass: document.getElementById("pass").value,
+					ip: document.getElementById("ip").value,
+					gateway: document.getElementById("gateway").value,
+					dns: document.getElementById("dns").value,
+					subnet: document.getElementById("subnet").value,
+				};
+				console.log("Msg:", msg);
+				websocket.send(JSON.stringify(msg));
 			}
-
-			.form label {
-				font-size: 18px;
-				color: #212529;
-			}
-
-			.form input,
-			.form select,
-			.form textarea {
-				padding: 10px;
-				border: 1px solid #dee2e6;
-				border-radius: 8px;
-				font-size: 18px;
-			}
-
-			.form button {
-				padding: 15px 20px;
-				background-color: #212529;
-				color: #fff;
-				border: none;
-				border-radius: 8px;
-				font-size: 18px;
-				cursor: pointer;
-			}
-		</style>
+		</script>
 	</head>
 	<body>
-		<div class="container">
-			<h1 class="title">Подключение к сети</h1>
-			<p class="subtitle">Введите параметры подключения к сети</p>
-			<form action="/" method="post" class="form">
+		<!-- Main page -->
+		<div data-role="page" style="overflow: hidden">
+			<!-- Main page content -->
+			<div data-role="main" class="ui-content jqm-content jqm-fullwidth">
+				<h1>Подключение к сети</h1>
+				<p>Введите параметры подключения к сети</p>
+
 				<label for="ssid">SSID</label>
-				<input
-					type="text"
-					id="ssid"
-					name="ssid"
-					placeholder="Имя сети"
-				/>
+				<select id="ssid" name="ssid">
+					<option value="">Выберете сеть</option>
+				</select>
 				<label for="pass">Пароль</label>
 				<input
 					type="text"
@@ -99,21 +110,30 @@
 					placeholder="Маска подсети"
 				/>
 
-				<!-- <label for="pronoun">Pronoun</label>
-				<select id="pronoun" name="pronoun">
-					<option value="">Select your pronoun</option>
-					<option value="he">He</option>
-					<option value="she">She</option>
-					<option value="they">They</option>
-				</select>
-				<label for="message">Message</label>
-				<textarea
-					id="message"
-					name="message"
-					placeholder="Enter your message"
-				></textarea> -->
-				<input type="submit" value="Подключение" />
-			</form>
+				<button
+					type="button"
+					id="submit"
+					name="submit"
+					onclick="onSubmit()"
+				>
+					Отправить
+				</button>
+
+				<!--Footer-->
+				<div
+					data-role="footer"
+					id="footer1"
+					data-position="fixed"
+					class="red-footer"
+				>
+					<div class="ui-bar">
+						<h7 style="float: right">© 2024 Sector13</h7>
+					</div>
+				</div>
+				<!--/Footer-->
+			</div>
+			<!--/main page content-->
 		</div>
+		<!--/main page-->
 	</body>
 </html>
