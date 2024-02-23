@@ -6,6 +6,7 @@
 #include <time.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <PubSubClient.h>
 
 #define SM_DIR 27
 #define SM_STEP 25
