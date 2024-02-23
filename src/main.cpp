@@ -26,6 +26,15 @@ const char *PARAM_INPUT_4 = "gateway";
 const char *PARAM_INPUT_5 = "dns";
 const char *PARAM_INPUT_6 = "subnet";
 
+const char *mqttServer = "m9.wqtt.ru";
+const int mqttPort = 15476;
+const char *mqttUser = "u_3MLZE1";
+const char *mqttPass = "78C0pl7e";
+const char *mqttClientId = "esp32_1";
+
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
+
 const char *settingsPath = "/settings.json";
 const char *timersPath = "/timers.json";
 
@@ -100,6 +109,26 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
 unsigned long ota_progress_millis = 0;
+
+bool mqttConnected()
+{
+	if (!mqttClient.connected())
+	{
+		Serial.println("Connecting to MQTT...");
+		mqttClient.setServer(mqttServer, mqttPort);
+		if (mqttClient.connect(mqttClientId, mqttUser, mqttPass))
+		{
+			Serial.println("Connected to MQTT!");
+		}
+		else
+		{
+			Serial.print("Connection to MQTT failed!");
+			Serial.println(mqttClient.state());
+		}
+		return mqttClient.connected();
+	}
+	return true;
+}
 
 void onOTAStart()
 {
