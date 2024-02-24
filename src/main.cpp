@@ -26,11 +26,15 @@ const char *PARAM_INPUT_4 = "gateway";
 const char *PARAM_INPUT_5 = "dns";
 const char *PARAM_INPUT_6 = "subnet";
 
-const char *mqttServer = "m9.wqtt.ru";
 const int mqttPort = 15476;
+const char *mqttServer = "m9.wqtt.ru";
 const char *mqttUser = "u_3MLZE1";
 const char *mqttPass = "78C0pl7e";
-const char *mqttClientId = "esp32_1";
+const char *mqttTopicDeviceStatus = "easyShade/status";
+const char *mqttDeviceStatusOn = "online";
+const char *mqttDeviceStatusOff = "offline";
+const int mqttDeviceStatusQos = 1;
+const bool mqttDeviceStatusRetain = true;
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
@@ -44,6 +48,7 @@ const char *ip;
 const char *gateway;
 const char *dns;
 const char *subnet;
+const char *hostname;
 
 IPAddress localIP;
 IPAddress localGateway;
@@ -110,24 +115,30 @@ AsyncWebSocket ws("/ws");
 
 unsigned long ota_progress_millis = 0;
 
-bool mqttConnected()
+bool mqttConnected(const char *mqttClientId)
 {
 	if (!mqttClient.connected())
 	{
-		Serial.println("Connecting to MQTT...");
+		Serial.print("Connecting to MQTT...");
 		mqttClient.setServer(mqttServer, mqttPort);
-		if (mqttClient.connect(mqttClientId, mqttUser, mqttPass))
+
+		if (mqttClient.connect(mqttClientId, mqttUser, mqttPass, mqttTopicDeviceStatus, mqttDeviceStatusQos, mqttDeviceStatusRetain, mqttDeviceStatusOff))
 		{
-			Serial.println("Connected to MQTT!");
+			Serial.println(" - success");
+			mqttClient.publish(mqttTopicDeviceStatus, mqttDeviceStatusOn, mqttDeviceStatusRetain);
+			return true;
 		}
 		else
 		{
-			Serial.print("Connection to MQTT failed!");
+			Serial.println("- failed!");
 			Serial.println(mqttClient.state());
+			return false;
 		}
-		return mqttClient.connected();
 	}
-	return true;
+	else
+	{
+		return true;
+	}
 }
 
 void onOTAStart()
@@ -569,16 +580,16 @@ void setup()
 	// ... read settings file from SPIFFS
 	json = readJsonFile(SPIFFS, settingsPath);
 
-	// json["ssid"] = "YA31";
-	// json["pass"] = "audia3o765km190rus";
-	// json["ip"] = "192.168.68.201";
-	// json["gateway"] = "192.168.68.1";
-	// json["dns"] = "192.168.68.1";
-	// json["subnet"] = "255.255.255.0";
-	// json["shadeLenght"] = 0;
-	// json["targetPos"] = 0;
-	// json["shade"] = 0;
-	// json["calibrateStatus"] = "false";
+	json["ssid"] = "YA31";
+	json["pass"] = "audia3o765km190rus";
+	json["ip"] = "192.168.68.201";
+	json["gateway"] = "192.168.68.1";
+	json["dns"] = "192.168.68.1";
+	json["subnet"] = "255.255.255.0";
+	json["shadeLenght"] = 0;
+	json["targetPos"] = 0;
+	json["shade"] = 0;
+	json["calibrateStatus"] = "false";
 
 	Serial.println("Settings json file content: ");
 	serializeJson(json, Serial);
@@ -644,14 +655,16 @@ void setup()
 		Serial.println("Error reading timers file");
 	}
 
+	hostname = WiFi.getHostname();
+
 	// If ssid is empty create access point
 	if (ssid == 0)
 	{
 		init_flag = false;
 
 		Serial.print("Setting Access Point: ");
-		Serial.println(WiFi.getHostname());
-		WiFi.softAP(WiFi.getHostname(), NULL);
+		Serial.println(hostname);
+		WiFi.softAP(hostname, NULL);
 
 		DynamicJsonDocument networks = scanNetworks();
 		serializeJson(networks, Serial);
@@ -786,13 +799,14 @@ void setup()
 					ESP.restart();
 				}
 			}
-			digitalWrite(LED_CONNECT, HIGH);
 
 			Serial.println(" -success");
 			Serial.printf("Connected to WiFi: %s", String(ssid));
 			Serial.println("");
 			Serial.print("Local IP: ");
 			Serial.println(WiFi.localIP());
+
+			digitalWrite(LED_CONNECT, HIGH);
 
 			// Try to get local time with timeout 10 sec
 			Serial.print("Waiting for NTP time sync... ");
@@ -878,6 +892,10 @@ void setup()
 void loop()
 {
 	ElegantOTA.loop();
+	if (mqttConnected(hostname))
+	{
+		mqttClient.loop();
+	}
 	// If the system is not initialized, blink briefly 2 times
 	if (!init_flag)
 	{
